@@ -6,11 +6,14 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { ListView } from "@/components/ListView";
 import { CalendarView } from "@/components/CalendarView";
 import { TemplatesView } from "@/components/TemplatesView";
+import { EncryptedNotesView } from "@/components/EncryptedNotesView";
+import { WorkspaceView } from "@/components/WorkspaceView";
 import { Toaster, toast } from "sonner";
 import { useTaskManager } from "@/hooks/useTaskManager";
 
 export default function Home() {
-  const [currentView, setCurrentView] = useState('board');
+  const [currentView, setCurrentView] = useState('workspace');
+  const [activeWorkspace] = useState({ id: '1', name: 'My Workspace' });
   const { tasks, updateTask, deleteTask, createTask, addTag, moveTask, setTasks, addTasks } = useTaskManager();
 
   const handleUseTemplate = (templateTasks: Partial<any>[]) => {
@@ -30,7 +33,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#050508] text-neutral-200">
-      <DashboardLayout currentView={currentView} onViewChange={setCurrentView}>
+      <DashboardLayout currentView={currentView} onViewChange={setCurrentView} activeWorkspaceName={activeWorkspace.name}>
         {currentView === 'board' && (
           <KanbanBoard
             tasks={tasks}
@@ -45,6 +48,8 @@ export default function Home() {
         {currentView === 'list' && <ListView tasks={tasks} />}
         {currentView === 'calendar' && <CalendarView tasks={tasks} />}
         {currentView === 'templates' && <TemplatesView onUseTemplate={handleUseTemplate} />}
+        {currentView === 'notes' && <EncryptedNotesView />}
+        {currentView === 'workspace' && <WorkspaceView workspaceName={activeWorkspace.name} onViewChange={setCurrentView} />}
         {currentView === 'timeline' && (
           <div className="flex items-center justify-center h-full text-neutral-500">
             Timeline View Coming Soon

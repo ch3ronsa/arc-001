@@ -23,7 +23,7 @@ import { Chain } from '@rainbow-me/rainbowkit';
 const arcNetwork = {
     id: 5042002,
     name: 'Arc Testnet',
-    network: 'arc-testnet',
+
     nativeCurrency: { decimals: 18, name: 'USDC', symbol: 'USDC' },
     rpcUrls: {
         default: { http: ['https://rpc.testnet.arc.network'] },
@@ -37,7 +37,7 @@ const arcNetwork = {
 
 const config = getDefaultConfig({
     appName: 'Notion Kanban Web3',
-    projectId: 'YOUR_PROJECT_ID',
+    projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'test-project-id',
     chains: [arcNetwork, sepolia, mainnet, polygon, optimism, arbitrum, base],
     ssr: true,
 });

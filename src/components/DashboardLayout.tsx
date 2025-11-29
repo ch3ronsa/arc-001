@@ -1,13 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Layout, Lock, FileText, Settings, ChevronRight, ChevronDown, Plus,
     Grid, List, Calendar, Clock, CreditCard, Activity, Search, Bell,
     Menu, Zap, Database, Shield
 } from 'lucide-react';
-import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import { useProfile } from '@/hooks/useProfile';
@@ -16,23 +15,66 @@ interface DashboardLayoutProps {
     children: React.ReactNode;
     currentView: string;
     onViewChange: (view: string) => void;
+    activeWorkspaceName?: string;
 }
 
-export function DashboardLayout({ children, currentView, onViewChange }: DashboardLayoutProps) {
+export function DashboardLayout({ children, currentView, onViewChange, activeWorkspaceName }: DashboardLayoutProps) {
     const [isSidebarOpen, setSidebarOpen] = useState(true);
     const { profile } = useProfile();
     const { isConnected } = useAccount();
 
+    const [workspaces, setWorkspaces] = useState<{ id: string, name: string }[]>([]);
+    const [activeWorkspace, setActiveWorkspace] = useState('1');
+    const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
+
+    // Load workspaces from localStorage
+    useEffect(() => {
+        const saved = localStorage.getItem('arc-workspaces');
+        if (saved) {
+            try {
+                setWorkspaces(JSON.parse(saved));
+            } catch (e) {
+                console.error('Failed to parse workspaces', e);
+                setWorkspaces([{ id: '1', name: 'My Workspace' }]);
+            }
+        } else {
+            setWorkspaces([{ id: '1', name: 'My Workspace' }]);
+        }
+    }, []);
+
+    // Save workspaces to localStorage
+    useEffect(() => {
+        if (workspaces.length > 0) {
+            localStorage.setItem('arc-workspaces', JSON.stringify(workspaces));
+        }
+    }, [workspaces]);
+
+    const handleAddWorkspace = () => {
+        setSidebarOpen(true);
+        setIsAddingWorkspace(true);
+    };
+
+    const confirmAddWorkspace = (name: string) => {
+        const newWorkspace = {
+            id: Math.random().toString(36).substr(2, 9),
+            name
+        };
+        setWorkspaces([...workspaces, newWorkspace]);
+        setIsAddingWorkspace(false);
+        setActiveWorkspace(newWorkspace.id);
+        onViewChange('workspace');
+    };
+
     return (
-        <div className="flex h-screen bg-[#050508] text-white overflow-hidden font-sans selection:bg-purple-500/30">
+        <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)] overflow-hidden font-sans selection:bg-purple-500/30 transition-colors duration-500">
             {/* Sidebar */}
             <motion.aside
                 initial={{ width: 260 }}
                 animate={{ width: isSidebarOpen ? 260 : 72 }}
-                className="h-full bg-[#0a0a12]/80 border-r border-white/5 flex flex-col transition-all duration-300 relative z-20 backdrop-blur-xl"
+                className="h-full bg-[var(--card-bg)] border-r border-[var(--border-color)] flex flex-col transition-all duration-300 relative z-20 backdrop-blur-xl"
             >
                 {/* Sidebar Header */}
-                <div className="h-16 flex items-center px-4 border-b border-white/5">
+                <div className="h-16 flex items-center px-4 border-b border-[var(--border-color)]">
                     <div className={`flex items-center gap-3 ${!isSidebarOpen && 'justify-center w-full'}`}>
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20 shrink-0">
                             <Zap size={18} className="text-white" />
@@ -49,17 +91,63 @@ export function DashboardLayout({ children, currentView, onViewChange }: Dashboa
                 <div className="flex-1 overflow-y-auto py-6 px-3 space-y-6">
                     {/* Workspaces */}
                     <div className="space-y-1">
-                        {isSidebarOpen && <h3 className="text-xs font-semibold text-neutral-500 px-3 mb-2 uppercase tracking-wider">Workspaces</h3>}
-                        <SidebarItem icon={<Database size={18} />} label="Engineering DAO" isOpen={isSidebarOpen} active />
-                        <SidebarItem icon={<Layout size={18} />} label="Design System" isOpen={isSidebarOpen} />
-                        <SidebarItem icon={<Activity size={18} />} label="Marketing" isOpen={isSidebarOpen} />
+                        <div className="flex items-center justify-between px-3 mb-2">
+                            {isSidebarOpen && <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Workspaces</h3>}
+                            <button
+                                onClick={handleAddWorkspace}
+                                className="text-neutral-500 hover:text-white transition-colors"
+                                title="Add Workspace"
+                            >
+                                <Plus size={14} />
+                            </button>
+                        </div>
+
+                        {workspaces.map(ws => (
+                            <SidebarItem
+                                key={ws.id}
+                                icon={<Database size={18} />}
+                                label={ws.name}
+                                isOpen={isSidebarOpen}
+                                active={activeWorkspace === ws.id}
+                                onClick={() => {
+                                    setActiveWorkspace(ws.id);
+                                    onViewChange('workspace');
+                                }}
+                            />
+                        ))}
+
+                        {isAddingWorkspace && isSidebarOpen && (
+                            <div className="px-3 py-1">
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500/50"
+                                    placeholder="Workspace Name..."
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            const name = e.currentTarget.value.trim();
+                                            if (name) confirmAddWorkspace(name);
+                                            else setIsAddingWorkspace(false);
+                                        } else if (e.key === 'Escape') {
+                                            setIsAddingWorkspace(false);
+                                        }
+                                    }}
+                                    onBlur={() => setIsAddingWorkspace(false)}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Private Pages */}
                     <div className="space-y-1">
                         {isSidebarOpen && <h3 className="text-xs font-semibold text-neutral-500 px-3 mb-2 uppercase tracking-wider">Private</h3>}
-                        <SidebarItem icon={<Lock size={18} />} label="Encrypted Notes" isOpen={isSidebarOpen} />
-                        <SidebarItem icon={<Shield size={18} />} label="Wallet Keys" isOpen={isSidebarOpen} />
+                        <SidebarItem
+                            icon={<Lock size={18} />}
+                            label="Encrypted Notes"
+                            isOpen={isSidebarOpen}
+                            onClick={() => onViewChange('notes')}
+                            active={currentView === 'notes'}
+                        />
                     </div>
 
                     {/* Templates */}
@@ -77,10 +165,10 @@ export function DashboardLayout({ children, currentView, onViewChange }: Dashboa
                 </div>
 
                 {/* Sidebar Footer */}
-                <div className="p-4 border-t border-white/5">
+                <div className="p-4 border-t border-[var(--border-color)]">
                     <button
                         onClick={() => setSidebarOpen(!isSidebarOpen)}
-                        className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-white/5 text-neutral-400 hover:text-white transition-colors"
+                        className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-white/5 text-neutral-400 hover:text-[var(--foreground)] transition-colors"
                     >
                         {isSidebarOpen ? <ChevronRight size={18} className="rotate-180" /> : <ChevronRight size={18} />}
                     </button>
@@ -90,18 +178,10 @@ export function DashboardLayout({ children, currentView, onViewChange }: Dashboa
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0 bg-[url('/grid.svg')] bg-fixed">
                 {/* Header */}
-                <header className="h-16 border-b border-white/5 bg-[#0a0a12]/50 backdrop-blur-md flex items-center justify-between px-6 z-10">
-                    {/* Left: Breadcrumbs & View Switcher */}
+                <header className="h-16 border-b border-[var(--border-color)] bg-[var(--card-bg)] backdrop-blur-md flex items-center justify-between px-6 z-10 transition-colors duration-500">
+                    {/* Left: View Switcher */}
                     <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2 text-sm text-neutral-400">
-                            <span className="hover:text-white cursor-pointer transition-colors">Engineering DAO</span>
-                            <ChevronRight size={14} />
-                            <span className="text-white font-medium">Q4 Roadmap</span>
-                        </div>
-
-                        <div className="h-6 w-[1px] bg-white/10"></div>
-
-                        <div className="flex items-center bg-white/5 rounded-lg p-1 border border-white/5">
+                        <div className="flex items-center bg-[var(--card-bg)] rounded-lg p-1 border border-[var(--border-color)]">
                             <ViewTab icon={<Grid size={14} />} label="Board" active={currentView === 'board'} onClick={() => onViewChange('board')} />
                             <ViewTab icon={<List size={14} />} label="List" active={currentView === 'list'} onClick={() => onViewChange('list')} />
                             <ViewTab icon={<Calendar size={14} />} label="Calendar" active={currentView === 'calendar'} onClick={() => onViewChange('calendar')} />
@@ -109,21 +189,8 @@ export function DashboardLayout({ children, currentView, onViewChange }: Dashboa
                         </div>
                     </div>
 
-                    {/* Right: Web3 Status & Actions */}
+                    {/* Right: Actions */}
                     <div className="flex items-center gap-4">
-                        {isConnected && (
-                            <>
-                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs font-medium text-blue-400">
-                                    <CreditCard size={12} />
-                                    <span>15 Gwei</span>
-                                </div>
-                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-xs font-medium text-purple-400">
-                                    <Activity size={12} />
-                                    <span>980 XP</span>
-                                </div>
-                            </>
-                        )}
-
                         <ConnectButton showBalance={false} chainStatus="icon" accountStatus="avatar" />
                     </div>
                 </header>

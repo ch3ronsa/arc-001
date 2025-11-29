@@ -57,43 +57,46 @@ const MOCK_TASKS: Task[] = [
 ];
 
 export function useTaskManager() {
+    // Initialize with empty array to prevent hydration mismatch
     const [tasks, setTasks] = useState<Task[]>([]);
-    const [isMounted, setIsMounted] = useState(false);
 
+    // Load tasks from localStorage after component mounts (client-side only)
     useEffect(() => {
-        setIsMounted(true);
-        const saved = localStorage.getItem('arc-tasks');
-        const legacy = localStorage.getItem('kanban-tasks');
+        // Try to load from new key first
+        let saved = localStorage.getItem('arcOS-tasks');
+
+        if (!saved) {
+            // Migration: Check for old keys
+            const oldSaved = localStorage.getItem('kanban-tasks') || localStorage.getItem('arc-tasks');
+            if (oldSaved) {
+                saved = oldSaved;
+                // Migrate to new key
+                localStorage.setItem('arcOS-tasks', oldSaved);
+                localStorage.removeItem('kanban-tasks');
+                localStorage.removeItem('arc-tasks');
+            }
+        }
 
         if (saved) {
             try {
-                setTasks(JSON.parse(saved));
-            } catch (e) {
-                console.error("Failed to parse tasks", e);
-                setTasks(MOCK_TASKS);
-            }
-        } else if (legacy) {
-            // Migration from previous version
-            try {
-                const legacyTasks = JSON.parse(legacy);
-                // Ensure legacy tasks have new required fields if necessary, or just use them
-                setTasks(legacyTasks);
-                // Save to new key immediately to complete migration
-                localStorage.setItem('arc-tasks', legacy);
-            } catch (e) {
-                console.error("Failed to parse legacy tasks", e);
+                const parsed = JSON.parse(saved);
+                setTasks(parsed);
+            } catch (error) {
+                console.error('Failed to parse tasks:', error);
                 setTasks(MOCK_TASKS);
             }
         } else {
+            // First time: use mock data
             setTasks(MOCK_TASKS);
         }
     }, []);
 
+    // Save tasks to localStorage whenever they change
     useEffect(() => {
-        if (isMounted) {
-            localStorage.setItem('arc-tasks', JSON.stringify(tasks));
+        if (tasks.length > 0) {
+            localStorage.setItem('arcOS-tasks', JSON.stringify(tasks));
         }
-    }, [tasks, isMounted]);
+    }, [tasks]);
 
     const updateTask = (id: string, updates: Partial<Task>) => {
         setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
@@ -138,6 +141,5 @@ export function useTaskManager() {
         addTasks,
         addTag,
         moveTask,
-        isMounted
     };
 }

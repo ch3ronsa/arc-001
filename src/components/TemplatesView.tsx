@@ -1,17 +1,19 @@
-import { useState } from 'react';
-import { Scroll, Landmark, Shield, Rocket, Umbrella, Calendar, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Scroll, Landmark, Shield, Rocket, Umbrella, Calendar, Plus, X, Save } from 'lucide-react';
 import { Task } from '@/types';
+import { toast } from 'sonner';
 
 interface Template {
     id: string;
-    category: 'DAO' | 'Engineering' | 'Growth';
+    category: 'DAO' | 'Engineering' | 'Growth' | 'Custom';
     title: string;
     icon: React.ReactNode;
     description: string;
     tasks: Partial<Task>[];
+    isCustom?: boolean;
 }
 
-const TEMPLATES: Template[] = [
+const DEFAULT_TEMPLATES: Template[] = [
     {
         id: '1',
         category: 'DAO',
@@ -96,11 +98,94 @@ interface TemplatesViewProps {
 }
 
 export function TemplatesView({ onUseTemplate }: TemplatesViewProps) {
-    const [activeCategory, setActiveCategory] = useState<'All' | 'DAO' | 'Engineering' | 'Growth'>('All');
+    const [activeCategory, setActiveCategory] = useState<'All' | 'DAO' | 'Engineering' | 'Growth' | 'Custom'>('All');
+    const [templates, setTemplates] = useState<Template[]>([]);
+    const [isCreating, setIsCreating] = useState(false);
+
+    // New Template State
+    const [newTemplateTitle, setNewTemplateTitle] = useState('');
+    const [newTemplateDesc, setNewTemplateDesc] = useState('');
+    const [newTemplateTasks, setNewTemplateTasks] = useState<string>('');
+
+    // Load templates from localStorage
+    useEffect(() => {
+        const savedCustomTemplates = localStorage.getItem('custom-templates');
+        let customTemplates: Template[] = [];
+
+        if (savedCustomTemplates) {
+            try {
+                customTemplates = JSON.parse(savedCustomTemplates);
+                // Re-attach icons for custom templates (since React nodes don't serialize)
+                customTemplates = customTemplates.map(t => ({
+                    ...t,
+                    icon: <Rocket size={24} className="text-white" /> // Default icon for custom templates
+                }));
+            } catch (e) {
+                console.error('Failed to parse custom templates', e);
+            }
+        }
+
+        setTemplates([...DEFAULT_TEMPLATES, ...customTemplates]);
+    }, []);
+
+    const handleCreateTemplate = () => {
+        if (!newTemplateTitle || !newTemplateDesc) {
+            toast.error('Please fill in title and description');
+            return;
+        }
+
+        const tasksList = newTemplateTasks.split('\n').filter(t => t.trim()).map(content => ({
+            content: content.trim(),
+            columnId: 'backlog',
+            tags: ['Custom']
+        }));
+
+        if (tasksList.length === 0) {
+            toast.error('Please add at least one task');
+            return;
+        }
+
+        const newTemplate: Template = {
+            id: `custom-${Date.now()}`,
+            category: 'Custom',
+            title: newTemplateTitle,
+            description: newTemplateDesc,
+            icon: <Rocket size={24} className="text-white" />,
+            isCustom: true,
+            tasks: tasksList as Partial<Task>[]
+        };
+
+        const updatedTemplates = [...templates, newTemplate];
+        setTemplates(updatedTemplates);
+
+        // Save only custom templates to localStorage
+        const customTemplates = updatedTemplates.filter(t => t.isCustom);
+        // Remove icon property before saving as it contains React Node
+        const templatesToSave = customTemplates.map(({ icon, ...rest }) => rest);
+        localStorage.setItem('custom-templates', JSON.stringify(templatesToSave));
+
+        setIsCreating(false);
+        setNewTemplateTitle('');
+        setNewTemplateDesc('');
+        setNewTemplateTasks('');
+        toast.success('Custom template created successfully!');
+        setActiveCategory('Custom');
+    };
+
+    const handleDeleteTemplate = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const updatedTemplates = templates.filter(t => t.id !== id);
+        setTemplates(updatedTemplates);
+
+        const customTemplates = updatedTemplates.filter(t => t.isCustom);
+        const templatesToSave = customTemplates.map(({ icon, ...rest }) => rest);
+        localStorage.setItem('custom-templates', JSON.stringify(templatesToSave));
+        toast.success('Template deleted');
+    };
 
     const filteredTemplates = activeCategory === 'All'
-        ? TEMPLATES
-        : TEMPLATES.filter(t => t.category === activeCategory);
+        ? templates
+        : templates.filter(t => t.category === activeCategory);
 
     const handleUseTemplate = (template: Template) => {
         console.log(`Using template: ${template.title}`);
@@ -110,20 +195,29 @@ export function TemplatesView({ onUseTemplate }: TemplatesViewProps) {
     };
 
     return (
-        <div className="w-full p-8 animate-in fade-in duration-500">
+        <div className="w-full p-8 animate-in fade-in duration-500 relative">
             {/* Header */}
-            <div className="mb-8">
-                <h2 className="text-3xl font-bold text-white mb-2">Template Library</h2>
-                <p className="text-neutral-400">Accelerate your workflow with Web3-native setups.</p>
+            <div className="mb-8 flex items-end justify-between">
+                <div>
+                    <h2 className="text-3xl font-bold text-white mb-2">Template Library</h2>
+                    <p className="text-neutral-400">Accelerate your workflow with Web3-native setups.</p>
+                </div>
+                <button
+                    onClick={() => setIsCreating(true)}
+                    className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-all flex items-center gap-2"
+                >
+                    <Plus size={18} />
+                    Create Template
+                </button>
             </div>
 
             {/* Category Tabs */}
-            <div className="flex items-center gap-2 mb-8 border-b border-white/10 pb-4">
-                {['All', 'DAO', 'Engineering', 'Growth'].map((category) => (
+            <div className="flex items-center gap-2 mb-8 border-b border-white/10 pb-4 overflow-x-auto">
+                {['All', 'DAO', 'Engineering', 'Growth', 'Custom'].map((category) => (
                     <button
                         key={category}
                         onClick={() => setActiveCategory(category as any)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeCategory === category
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeCategory === category
                             ? 'bg-white/10 text-white shadow-sm border border-white/10'
                             : 'text-neutral-500 hover:text-white hover:bg-white/5'
                             }`}
@@ -140,6 +234,16 @@ export function TemplatesView({ onUseTemplate }: TemplatesViewProps) {
                         key={template.id}
                         className="group relative p-6 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300 backdrop-blur-sm flex flex-col"
                     >
+                        {template.isCustom && (
+                            <button
+                                onClick={(e) => handleDeleteTemplate(template.id, e)}
+                                className="absolute top-4 right-4 p-1.5 rounded-lg bg-red-500/10 text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all"
+                                title="Delete Template"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+
                         <div className="mb-4 p-3 rounded-lg bg-black/20 w-fit border border-white/5 group-hover:border-white/10 transition-colors">
                             {template.icon}
                         </div>
@@ -152,7 +256,7 @@ export function TemplatesView({ onUseTemplate }: TemplatesViewProps) {
                             {template.title}
                         </h3>
 
-                        <p className="text-sm text-neutral-400 mb-6 flex-1">
+                        <p className="text-sm text-neutral-400 mb-6 flex-1 line-clamp-3">
                             {template.description}
                         </p>
 
@@ -166,6 +270,64 @@ export function TemplatesView({ onUseTemplate }: TemplatesViewProps) {
                     </div>
                 ))}
             </div>
+
+            {/* Create Template Modal */}
+            {isCreating && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-md bg-[#1a1b1e] border border-white/10 rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-white">Create Custom Template</h3>
+                            <button
+                                onClick={() => setIsCreating(false)}
+                                className="text-neutral-400 hover:text-white transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-neutral-400 mb-1 uppercase">Template Title</label>
+                                <input
+                                    type="text"
+                                    value={newTemplateTitle}
+                                    onChange={(e) => setNewTemplateTitle(e.target.value)}
+                                    placeholder="e.g., Weekly Sprint Setup"
+                                    className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white placeholder:text-neutral-600 focus:outline-none focus:border-purple-500/50"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-medium text-neutral-400 mb-1 uppercase">Description</label>
+                                <textarea
+                                    value={newTemplateDesc}
+                                    onChange={(e) => setNewTemplateDesc(e.target.value)}
+                                    placeholder="What is this template for?"
+                                    className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white placeholder:text-neutral-600 focus:outline-none focus:border-purple-500/50 resize-none h-20"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-medium text-neutral-400 mb-1 uppercase">Tasks (One per line)</label>
+                                <textarea
+                                    value={newTemplateTasks}
+                                    onChange={(e) => setNewTemplateTasks(e.target.value)}
+                                    placeholder="Review PRs&#10;Update Documentation&#10;Team Sync"
+                                    className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white placeholder:text-neutral-600 focus:outline-none focus:border-purple-500/50 resize-none h-32 font-mono text-sm"
+                                />
+                            </div>
+
+                            <button
+                                onClick={handleCreateTemplate}
+                                className="w-full py-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all flex items-center justify-center gap-2 mt-2"
+                            >
+                                <Save size={18} />
+                                Save Template
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

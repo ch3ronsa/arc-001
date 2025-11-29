@@ -33,18 +33,6 @@ const TASK_JOURNAL_ABI = [
     {
         inputs: [{ internalType: "string[]", name: "taskTitles", type: "string[]" }],
         name: "logTasks",
-        outputs: [],
-        stateMutability: "nonpayable",
-        type: "function",
-    },
-] as const;
-
-const CONTRACT_ADDRESS = "0x1234567890123456789012345678901234567890"; // Placeholder
-
-const defaultCols = [
-    {
-        id: "backlog",
-        title: "Backlog",
     },
     {
         id: "bounty",
